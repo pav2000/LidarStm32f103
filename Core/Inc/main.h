@@ -32,7 +32,9 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdlib.h>
+#include "st7735.h"
+#include "fonts.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -58,6 +60,18 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define TFT_CS_Pin GPIO_PIN_1
+#define TFT_CS_GPIO_Port GPIOA
+#define LED2_Pin GPIO_PIN_1
+#define LED2_GPIO_Port GPIOB
+#define TFT_LED_Pin GPIO_PIN_8
+#define TFT_LED_GPIO_Port GPIOA
+#define TFT_DC_Pin GPIO_PIN_9
+#define TFT_DC_GPIO_Port GPIOA
+#define TFT_RST_Pin GPIO_PIN_15
+#define TFT_RST_GPIO_Port GPIOA
+#define BUZZER_Pin GPIO_PIN_4
+#define BUZZER_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
