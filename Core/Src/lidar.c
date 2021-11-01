@@ -139,7 +139,7 @@ void readOnePoket(void)
 		   int32_t data0,data1,data2,angle;
 		   state = START1;
 	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
-		   HAL_UART_Receive_IT(&huart2, rxBuf, data_lenght * 3 );        // читаем все данные
+		   HAL_UART_Receive_IT(&huart2, rxBuf, data_lenght * 3);        // читаем все данные
 		   osDelay(8);
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
 	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
