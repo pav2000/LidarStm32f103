@@ -414,7 +414,7 @@ void StartTask02(void *argument)
   for(;;)
   {
 	showData();
-    osDelay(1);
+//    osDelay(1);
   }
   /* USER CODE END StartTask02 */
 }
