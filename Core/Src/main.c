@@ -45,6 +45,7 @@ typedef StaticTask_t osStaticThreadDef_t;
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_tx;
+
 UART_HandleTypeDef huart2;
 
 /* Definitions for readLidar */
@@ -57,7 +58,7 @@ const osThreadAttr_t readLidar_attributes = {
   .cb_size = sizeof(readLidarControlBlock),
   .stack_mem = &readLidarBuffer[0],
   .stack_size = sizeof(readLidarBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityBelowNormal,
 };
 /* Definitions for showLidar */
 osThreadId_t showLidarHandle;
@@ -301,7 +302,7 @@ static void MX_USART2_UART_Init(void)
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.Mode = UART_MODE_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
   if (HAL_UART_Init(&huart2) != HAL_OK)
@@ -412,13 +413,13 @@ void StartTask02(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	//showData();
+	showData();
     osDelay(1);
   }
   /* USER CODE END StartTask02 */
 }
 
- /**
+/**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM1 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment

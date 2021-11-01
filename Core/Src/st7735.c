@@ -8,6 +8,10 @@
 
 #include "st7735.h"
 #include "stdlib.h"
+//#include "cmsis_os.h"
+//#include "task.h"
+
+
 
 #define TFT_BL_H()	ST7735_BL_GPIO_Port -> BSRR = ST7735_BL_Pin
 #define TFT_BL_L()	ST7735_BL_GPIO_Port -> BRR 	= ST7735_BL_Pin
@@ -162,7 +166,9 @@ static void ST7735_WriteCommand(uint8_t cmd)
 	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, &cmd, sizeof(cmd));
 	//while(hspi1.State == HAL_SPI_STATE_BUSY_TX);
 #else*/
+//	taskENTER_CRITICAL();
 	HAL_SPI_Transmit(&ST7735_SPI_PORT, &cmd, sizeof(cmd), HAL_MAX_DELAY);
+//	taskEXIT_CRITICAL();
 //#endif
 }
 
@@ -170,12 +176,15 @@ static void ST7735_WriteData(uint8_t* buff, size_t buff_size)
 {
 	TFT_DC_D();
 #ifdef USE_SPI_DMA
+//	taskENTER_CRITICAL();
 	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, buff, buff_size);
 	while(hspi1.State == HAL_SPI_STATE_BUSY_TX);
+//	taskEXIT_CRITICAL();
 #else
+//	taskENTER_CRITICAL();
 	HAL_SPI_Transmit(&ST7735_SPI_PORT, buff, buff_size, HAL_MAX_DELAY);
+//	taskEXIT_CRITICAL();
 #endif
-//	TFT_CS_H(); //pav2000
 }
 
 static void ST7735_ExecuteCommandList(const uint8_t *addr)

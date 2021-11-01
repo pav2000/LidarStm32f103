@@ -1,5 +1,6 @@
 
 #include "lidar.h"
+#include "cmsis_os.h"
 extern UART_HandleTypeDef huart2;
 
 enum state_type   // Стадия приема пакета
@@ -37,6 +38,7 @@ void radar_show(uint16_t angle, uint16_t dist)
 	uint16_t dt=0;
 	char buf[8];
 	uint32_t  x1,y1;
+	if(dist>RADIUS) dist=RADIUS;
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
 	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);                // Восстановить точку
 // Расчет новой конечной точки
@@ -136,7 +138,10 @@ void readOnePoket(void)
 		   uint32_t index;                                                           // Угол в градусах, он же индекс массива данных
 		   int32_t data0,data1,data2,angle;
 		   state = START1;
-		   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
+	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
+		   HAL_UART_Receive_IT(&huart2, rxBuf, data_lenght * 3);        // читаем все данные
+		   osDelay(8);
+		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
 	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
 	    	    data0 = rxBuf[i*3 + 0];
 				data1 = rxBuf[i*3 + 1];
@@ -153,8 +158,8 @@ void readOnePoket(void)
 				//data[i].distance_list.append(distance / 1000) # div to convert mm to meter
 		//		 radar_show(data[i].angle/100,data[i].distance/1000);
 	       }// for
-	       HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
-	       showData();
+	 //      HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
+	 //      showData();
 //       if (show==1){
 //	    	   show=0;
 //	        for (i=0;i<360;i++){ // Показ графика
@@ -171,7 +176,7 @@ uint16_t i;
 if (show==1){
  	   show=0;
      for (i=0;i<360;i++){ // Показ графика
-   			 radar_show(i,data[i].distance/100);
+   			 radar_show(i,data[i].distance/50);
    			data[i].distance=0;
          }// for
    }
