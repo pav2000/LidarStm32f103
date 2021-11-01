@@ -20,6 +20,7 @@ char rxBuf[512];
 struct dataPoint{
 	uint16_t distance;
 	uint16_t quality;
+	uint8_t x,y;  // Координаты точки
 	} data[360+1];
 
 
@@ -35,35 +36,42 @@ const uint16_t cos1000[90]={1000,999,999,998,996,995,993,990,988,985,982,978,974
 // Вход теущая дистанция
 void radar_show(uint16_t angle, uint16_t dist)
 {
-	uint16_t dt=0;
-	char buf[8];
+//	uint16_t dt=0;
+//	char buf[8];
 	uint32_t  x1,y1;
 	if(dist>RADIUS) dist=RADIUS;
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
+
 	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);                // Восстановить точку
-// Расчет новой конечной точки
+// Расчет новой конечной точки и точки на лидаре
 // В зависимости от квадранта угла
-if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
-                                y1=CENTRE_Y - (RADIUS*cos1000[angle])/1000;
-                                xPoint=CENTRE_X+(dist*sin1000[angle])/1000;
-                                yPoint=CENTRE_Y - (dist*cos1000[angle])/1000;} else
-if ((angle>=90)&&(angle<180))  {x1=CENTRE_X+(RADIUS*cos1000[angle-90])/1000;
-                                y1=CENTRE_Y + (RADIUS*sin1000[angle-90])/1000;
-                                xPoint=CENTRE_X+(dist*cos1000[angle-90])/1000;
-                                yPoint=CENTRE_Y + (dist*sin1000[angle-90])/1000;} else
-if ((angle>=180)&&(angle<270)) {x1=CENTRE_X-(RADIUS*sin1000[angle-180])/1000;
-                                y1=CENTRE_Y + (RADIUS*cos1000[angle-180])/1000;
-                                xPoint=CENTRE_X-(dist*sin1000[angle-180])/1000;
-                                yPoint=CENTRE_Y + (dist*cos1000[angle-180])/1000;}else
-if ((angle>=270)&&(angle<360)) {x1=CENTRE_X-(RADIUS*cos1000[angle-270])/1000;
-                                y1=CENTRE_Y - (RADIUS*sin1000[angle-270])/1000;
-                                xPoint=CENTRE_X-(dist*cos1000[angle-270])/1000;
-                                yPoint=CENTRE_Y - (dist*sin1000[angle-270])/1000;}
+	if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
+	                                y1=CENTRE_Y - (RADIUS*cos1000[angle])/1000;
+	                                xPoint=CENTRE_X+(dist*sin1000[angle])/1000;
+	                                yPoint=CENTRE_Y - (dist*cos1000[angle])/1000;} else
+	if ((angle>=90)&&(angle<180))  {x1=CENTRE_X+(RADIUS*cos1000[angle-90])/1000;
+	                                y1=CENTRE_Y + (RADIUS*sin1000[angle-90])/1000;
+	                                xPoint=CENTRE_X+(dist*cos1000[angle-90])/1000;
+	                                yPoint=CENTRE_Y + (dist*sin1000[angle-90])/1000;} else
+	if ((angle>=180)&&(angle<270)) {x1=CENTRE_X-(RADIUS*sin1000[angle-180])/1000;
+	                                y1=CENTRE_Y + (RADIUS*cos1000[angle-180])/1000;
+	                                xPoint=CENTRE_X-(dist*sin1000[angle-180])/1000;
+	                                yPoint=CENTRE_Y + (dist*cos1000[angle-180])/1000;}else
+	if ((angle>=270)&&(angle<360)) {x1=CENTRE_X-(RADIUS*cos1000[angle-270])/1000;
+	                                y1=CENTRE_Y - (RADIUS*sin1000[angle-270])/1000;
+	                                xPoint=CENTRE_X-(dist*cos1000[angle-270])/1000;
+	                                yPoint=CENTRE_Y - (dist*sin1000[angle-270])/1000;}
+
+
+ST7735_DrawPixel(data[angle].x,data[angle].y, ST7735_BLACK); // Стереть старую точку
+data[angle].x=xPoint; data[angle].y=yPoint;                  // Запомнить новую точку
 
 ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая линия
-ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
+//ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
+
 xLine=x1;
 yLine=y1;
+/*
 angle_old=angle+3;    // Можно менять шаг в градусах
 if (angle>=360) { // Полный круг
 	angle=0;
@@ -73,6 +81,7 @@ if (angle>=360) { // Полный круг
 	ST7735_DrawString(110, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	ST7735_DrawString(145, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
     }
+*/
 }
 
 // Показ Шкалы
@@ -149,35 +158,32 @@ void readOnePoket(void)
 
 				index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
 				if (index>359) { index=index-359; show=1;}                          // переход через 0 и признак необходимости показа
-
+				if (index>359) { HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET); index=360; }  // Установить светодиод 2 в 0
 				data[index].distance = (data2  << 8) + data1;
 				data[index].quality=data0;
 
-		//		data[i].angle = (start_angle + angle_per_sample * i);
-		//		data[i].angle = (-3.1415/2) * (angle / 0xB400);
-				//data[i].distance_list.append(distance / 1000) # div to convert mm to meter
-		//		 radar_show(data[i].angle/100,data[i].distance/1000);
 	       }// for
-	 //      HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
-	 //      showData();
-//       if (show==1){
-//	    	   show=0;
-//	        for (i=0;i<360;i++){ // Показ графика
-//	      			 radar_show(i,data[i].distance/100);
-//	      			data[i].distance=0;
-//	            }// for
-//	      } // if
+
 	   }
 	  }
 }
 
 void showData(void){
 uint16_t i;
-if (show==1){
- 	   show=0;
+uint32_t time;
+uint16_t dt=0;
+char buf[8];
+//if (show==1){
+ //	   show=0;
+time=HAL_GetTick();
      for (i=0;i<360;i++){ // Показ графика
    			 radar_show(i,data[i].distance/50);
-   			data[i].distance=0;
+   		     data[i].distance=0;
          }// for
-   }
+ //  }
+
+        dt=HAL_GetTick()-time; // Время полного круга (измерение)
+     	itoa(dt,buf,10);
+     	ST7735_DrawString(110, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
+     	ST7735_DrawString(145, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 }
