@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -26,11 +27,9 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.1"   // Версия программы
-#define CENTRE_X 64      // Координаты цента полярных координат
-#define CENTRE_Y 64      //
-#define RADIUS 64      //
+#define VERSION  "0.2"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -46,10 +45,34 @@
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_tx;
-
 UART_HandleTypeDef huart2;
 
+/* Definitions for readLidar */
+osThreadId_t readLidarHandle;
+uint32_t readLidarBuffer[ 128 ];
+osStaticThreadDef_t readLidarControlBlock;
+const osThreadAttr_t readLidar_attributes = {
+  .name = "readLidar",
+  .cb_mem = &readLidarControlBlock,
+  .cb_size = sizeof(readLidarControlBlock),
+  .stack_mem = &readLidarBuffer[0],
+  .stack_size = sizeof(readLidarBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for showLidar */
+osThreadId_t showLidarHandle;
+uint32_t showLidarBuffer[ 128 ];
+osStaticThreadDef_t showLidarControlBlock;
+const osThreadAttr_t showLidar_attributes = {
+  .name = "showLidar",
+  .cb_mem = &showLidarControlBlock,
+  .cb_size = sizeof(showLidarControlBlock),
+  .stack_mem = &showLidarBuffer[0],
+  .stack_size = sizeof(showLidarBuffer),
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* USER CODE BEGIN PV */
+uint32_t time;
 
 /* USER CODE END PV */
 
@@ -59,13 +82,17 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
+void StartDefaultTask(void *argument);
+void StartTask02(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-beep(uint16_t t)
+// Пищалка
+void beep(uint16_t t)
 {
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin); // Звук переключения
 	HAL_Delay(t);
@@ -111,28 +138,70 @@ int main(void)
    ST7735_Backlight_On(); // Включить подсветку дисплея
    ST7735_SetRotation(3);
    ST7735_FillScreen(ST7735_BLACK);
+   ST7735_DrawString(30, 50, "LIDAR MB 1R2T", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+
    ST7735_DrawString(0, 108, "Hardware version: 1.3", Font_7x10, ST7735_RED, ST7735_BLACK);
-   ST7735_DrawString(0, 118, "Test prog version:", Font_7x10, ST7735_RED, ST7735_BLACK);
-   ST7735_DrawString(130, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
+   ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
+   ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
    HAL_GPIO_WritePin(GPIOB, LED2_Pin, GPIO_PIN_SET);    // Установить светодиод 2 в 1
-   HAL_Delay(1000);
+   HAL_Delay(3000);
    ST7735_FillScreen(ST7735_BLACK);
    ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_WHITE);
    scale_show();
-   /* USER CODE END 2 */
+   time=HAL_GetTick();
 
+  /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of readLidar */
+  readLidarHandle = osThreadNew(StartDefaultTask, NULL, &readLidar_attributes);
+
+  /* creation of showLidar */
+  showLidarHandle = osThreadNew(StartTask02, NULL, &showLidar_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-	//  HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
+
+
+	//  HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // �?нвертирование состояния выхода.
 	//  radar_show((rand()%100+2)/2);
-	  radar_show(45);
+	 // radar_show();
 	//  HAL_Delay(100);                       // Пауза 50 миллисекунд.
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+// }
   /* USER CODE END 3 */
 }
 
@@ -256,7 +325,7 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
@@ -308,69 +377,67 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-uint16_t angle=0;                          // текущий угол (0-359)
-uint8_t  xLine=CENTRE_X;yLine=CENTRE_X;    // текущие коордианты линии
-uint8_t  xPoint=CENTRE_X;yPoint=CENTRE_X;  // текущие коордианты лидара
 
-
-const uint16_t sin1000[90]={0,17,35,52,70,87,105,122,139,156,174,191,208,225,242,259,276,292,309,326,342,358,375,391,407,423,438,454,469,485,500,515,
-		                    530,545,559,574,588,602,616,629,643,656,669,682,695,707,719,731,743,755,766,777,788,799,809,819,829,839,848,857,866,875,
-				            883,891,899,906,914,920,927,934,940,946,951,956,961,966,970,974,978,982,985,988,990,993,995,996,998,999,999,1000};
-const uint16_t cos1000[90]={1000,999,999,998,996,995,993,990,988,985,982,978,974,970,966,961,956,951,946,940,934,927,921,914,906,899,891,883,875,866,
-		                    857,848,839,829,819,809,799,788,777,766,755,743,731,719,707,695,682,669,656,643,629,616,602,588,574,559,545,530,515,500,
-							485,469,454,438,423,407,391,375,358,342,326,309,292,276,259,242,225,208,191,174,156,139,122,105,87,70,52,35,17,0};
-
-// Показ радара, смена положения луча и добавление еще одной точки
-// Вход теущая дистанция
-void radar_show(uint16_t dust)
-{
-	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
-	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
-// Расчет новой конечной точки
-uint32_t  x1,y1;
-// В зависимости от квадранта угла
-if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
-                                y1=CENTRE_Y - (RADIUS*cos1000[angle])/1000;
-                                xPoint=CENTRE_X+(dust*sin1000[angle])/1000;
-                                yPoint=CENTRE_Y - (dust*cos1000[angle])/1000;} else
-if ((angle>=90)&&(angle<180))  {x1=CENTRE_X+(RADIUS*cos1000[angle-90])/1000;
-                                y1=CENTRE_Y + (RADIUS*sin1000[angle-90])/1000;
-                                xPoint=CENTRE_X+(dust*cos1000[angle-90])/1000;
-                                yPoint=CENTRE_Y + (dust*sin1000[angle-90])/1000;} else
-if ((angle>=180)&&(angle<270)) {x1=CENTRE_X-(RADIUS*sin1000[angle-180])/1000;
-                                y1=CENTRE_Y + (RADIUS*cos1000[angle-180])/1000;
-                                xPoint=CENTRE_X-(dust*sin1000[angle-180])/1000;
-                                yPoint=CENTRE_Y + (dust*cos1000[angle-180])/1000;}else
-if ((angle>=270)&&(angle<360)) {x1=CENTRE_X-(RADIUS*cos1000[angle-270])/1000;
-                                y1=CENTRE_Y - (RADIUS*sin1000[angle-270])/1000;
-                                xPoint=CENTRE_X-(dust*cos1000[angle-270])/1000;
-                                yPoint=CENTRE_Y - (dust*sin1000[angle-270])/1000;}
-
-ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая линия
-ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
-xLine=x1;
-yLine=y1;
-angle=angle+3;
-if (angle>=360) angle=0;
-}
-// Показ Шкалы
-// Вход теущая дистанция
-void scale_show(void)
-{
-uint8_t i;
-	ST7735_DrawFastVLine(2*CENTRE_X+2,0, CENTRE_Y, ST7735_WHITE);
-	for (i=0;i<CENTRE_Y/10;i++)
-		ST7735_DrawFastHLine(2*CENTRE_X+2,3+10*i, 4, ST7735_WHITE);
-	ST7735_DrawString(2*CENTRE_X+10, 0*10, "6", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 1*10, "5", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 2*10, "4", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 3*10, "3", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 4*10, "2", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 5*10, "1", Font_7x10, ST7735_RED, ST7735_BLACK);
-
-
-}
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+   readOnePoket();
+   osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTask02 */
+/**
+* @brief Function implementing the showLidar thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void *argument)
+{
+  /* USER CODE BEGIN StartTask02 */
+  /* Infinite loop */
+  for(;;)
+  {
+	//showData();
+    osDelay(1);
+  }
+  /* USER CODE END StartTask02 */
+}
+
+ /**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -12,7 +12,7 @@
 #include "main.h"
 
 #define ST7735_SPI_PORT hspi1	//hspi1, hspi2, hspi3...
-#define USE_SPI_DMA		    	//if used DMA for SPI bus
+//#define USE_SPI_DMA		    	//if used DMA for SPI bus
 
 #define ST7735_1_8_DEFAULT_ORIENTATION	// AliExpress/eBay 1.8" display, default orientation
 //#define ST7735S_1_8_DEFAULT_ORIENTATION 	// WaveShare ST7735S-based 1.8" display, default orientation

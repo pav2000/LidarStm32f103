@@ -155,7 +155,6 @@ static void ST7735_Reset()
 
 static void ST7735_WriteCommand(uint8_t cmd)
 {
-//	TFT_CS_L(); //pav2000
 	TFT_DC_C();
 /*
 #ifdef USE_SPI_DMA
@@ -165,12 +164,10 @@ static void ST7735_WriteCommand(uint8_t cmd)
 #else*/
 	HAL_SPI_Transmit(&ST7735_SPI_PORT, &cmd, sizeof(cmd), HAL_MAX_DELAY);
 //#endif
-//	TFT_CS_H(); //pav2000
 }
 
 static void ST7735_WriteData(uint8_t* buff, size_t buff_size)
 {
-//	TFT_CS_L(); //pav2000
 	TFT_DC_D();
 #ifdef USE_SPI_DMA
 	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, buff, buff_size);
@@ -267,8 +264,7 @@ void ST7735_Init()
 
 void ST7735_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
 {
-    if((x >= _width) || (y >= _height))
-        return;
+    if((x >= _width) || (y >= _height))    return;
 
     TFT_CS_L();
 
