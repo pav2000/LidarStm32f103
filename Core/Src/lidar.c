@@ -14,8 +14,8 @@ enum state_type   // Стадия приема пакета
 
 uint8_t show=0;  // Флаг полного оборота
 uint16_t angle_old=0;                      // старый угол (0-359)
-uint8_t  xLine=CENTRE_X;yLine=CENTRE_X;    // текущие коордианты линии
-uint8_t  xPoint=CENTRE_X;yPoint=CENTRE_X;  // текущие коордианты расстояния
+uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;    // текущие коордианты линии
+uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X;  // текущие коордианты расстояния
 char rxBuf[512];
 struct dataPoint{
 	uint16_t distance;
