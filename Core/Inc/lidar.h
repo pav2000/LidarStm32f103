@@ -16,6 +16,7 @@ void radar_show(uint16_t angle, uint16_t dist);
 void readOnePoket(void);
 void showData(void);
 
+
 #define CENTRE_X 64      // Координаты цента полярных координат
 #define CENTRE_Y 64      //
 #define RADIUS 64        //

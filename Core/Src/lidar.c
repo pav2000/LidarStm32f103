@@ -73,20 +73,31 @@ yLine=y1;
 
 }
 
-// Показ Шкалы
+// Показ Шкалы  (храняться значения шкалы в дм, 0 не выводим)
+uint8_t scaleLavel[6][6]={0,0,5,0,0,10,     // шкала до метра
+		                  0,0,10,0,0,20,    // шкала до 2 метра
+		                  0,10,0,20,0,30,   // шкала до 3 метра
+		                  0,0,20,0,0,40,    // шкала до 4 метра
+		                  0,10,20,30,40,50, // шкала до 5 метра
+		                  0,20,0,40,0,60    // шкала до 6 метра
+                          };
 void scale_show(void)
 {
 uint8_t i;
+char buf[8];
 	ST7735_DrawFastVLine(2*CENTRE_X+4,0, CENTRE_Y, ST7735_WHITE);
-	for (i=0;i<CENTRE_Y/10;i++)
+//	for (i=0;i<CENTRE_Y/10;i++){
+	for (i=0;i<6;i++){
 		ST7735_DrawFastHLine(2*CENTRE_X+4,3+10*i, 4, ST7735_WHITE);
-	ST7735_DrawString(2*CENTRE_X+10, 0*10, "6", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 1*10, "5", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 2*10, "4", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 3*10, "3", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 4*10, "2", Font_7x10, ST7735_RED, ST7735_BLACK);
-	ST7735_DrawString(2*CENTRE_X+10, 5*10, "1", Font_7x10, ST7735_RED, ST7735_BLACK);
-	showScale();
+		if (scaleLavel[scale-1][i]>0){
+			itoa(scaleLavel[scale-1][i]*10,buf,10);
+			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,buf, Font_7x10, ST7735_RED, ST7735_BLACK);} else
+			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,"   ", Font_7x10, ST7735_RED, ST7735_BLACK);
+	}
+	// Масштаб
+	itoa(scale,buf,10);
+	ST7735_DrawString(0,  0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+	ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 }
 
 void readOnePoket(void)
@@ -156,8 +167,8 @@ void readOnePoket(void)
 				 osDelay(20);
 				 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
 					if(scale<6) scale++; else scale=1;
-					showScale();
 					pressKey=1;
+					scale_show();
 				 }
 			 }
 	  }   // while
@@ -179,12 +190,6 @@ dt=HAL_GetTick()-time;
 itoa(dt,buf,10);
 ST7735_DrawString(105, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 ST7735_DrawString(140, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-showScale();
+scale_show();
 }
-// Показать масштаб
-void showScale(void){
-char buf[8];
-itoa(scale,buf,10);
-ST7735_DrawString(0,  0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
-}
+
