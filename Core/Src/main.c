@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.25"   // Версия программы
+#define VERSION  "0.26"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -73,6 +73,7 @@ const osThreadAttr_t showLidar_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
+uint32_t time;
 
 /* USER CODE END PV */
 
@@ -91,7 +92,7 @@ void StartTask02(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// Пищалка (вход длительность)
+// Пищалка
 void beep(uint16_t t)
 {
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin); // Звук переключения
