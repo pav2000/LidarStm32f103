@@ -73,7 +73,6 @@ const osThreadAttr_t showLidar_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
-uint32_t time;
 
 /* USER CODE END PV */
 
