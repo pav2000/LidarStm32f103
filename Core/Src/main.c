@@ -91,7 +91,7 @@ void StartTask02(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// Пищалка
+// Пищалка (вход длительность)
 void beep(uint16_t t)
 {
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin); // Звук переключения
