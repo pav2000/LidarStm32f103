@@ -12,6 +12,10 @@ Bit format LSB <br>
 UART connection<br>
 <img src="https://github.com/pav2000/LidarStm32f103/blob/main/lidar.jpg" width="480" /> <br>
 <br>
+Speed control:<br>
+max speed(pwm to GND) about 9 hz and 200 measurements per rotation<br>
+min speed (pwm to 5v) about 3.7hz 1024 measurements per rotation<br>
+<br>
 Package structure:<br>
 1.0xAA, 0x55 - header<br>
 2.0x38 - lidar type (firmware type ??) possible values 0x28, 0x3С. We need to find out! And change it in the code!<br>

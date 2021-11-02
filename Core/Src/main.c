@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.23"   // Версия программы
+#define VERSION  "0.25"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -139,8 +139,9 @@ int main(void)
    ST7735_Backlight_On(); // Включить подсветку дисплея
    ST7735_SetRotation(3);
    ST7735_FillScreen(ST7735_BLACK);
-   ST7735_DrawString(30, 50, "LIDAR MB 1R2T", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+   ST7735_DrawString(10, 30, "LIDAR MB-1R2T", Font_11x18, ST7735_YELLOW, ST7735_BLACK);
 
+   ST7735_DrawString(0, 98, "Encoder button - zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
    ST7735_DrawString(0, 108, "Hardware version: 1.3", Font_7x10, ST7735_RED, ST7735_BLACK);
    ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
    ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);

@@ -6,7 +6,6 @@ extern UART_HandleTypeDef huart2;
 #define CONST_SCALE  75  // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
 enum state_type   // Стадия приема пакета
 	{
-	START0,
 	START1,
 	START2,
 	HEADER,
@@ -14,7 +13,7 @@ enum state_type   // Стадия приема пакета
 	} state;
 
 
-uint8_t scale=1;                           // масштаб графика
+uint8_t scale=1;                           // текущий масштаб графика
 uint8_t fScale=0;                          // Необходимость перерисовать шкалу (изменение масштаба)
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;    // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X;  // текущие коордианты расстояния
@@ -74,12 +73,12 @@ yLine=y1;
 }
 
 // Показ Шкалы  (храняться значения шкалы в дм, 0 не выводим)
-uint8_t scaleLavel[6][6]={0,0,5,0,0,10,     // шкала до метра
-		                  0,0,10,0,0,20,    // шкала до 2 метра
-		                  0,10,0,20,0,30,   // шкала до 3 метра
-		                  0,0,20,0,0,40,    // шкала до 4 метра
-		                  0,10,20,30,40,50, // шкала до 5 метра
-		                  0,20,0,40,0,60    // шкала до 6 метра
+uint8_t scaleLavel[6][6]={{ 0,0,5,0,0,10},    // шкала до метра
+		                  {0,0,10,0,0,20},    // шкала до 2 метра
+		                  {0,10,0,20,0,30},   // шкала до 3 метра
+		                  {0,0,20,0,0,40},    // шкала до 4 метра
+		                  {0,10,20,30,40,50}, // шкала до 5 метра
+		                  {0,20,0,40,0,60}    // шкала до 6 метра
                           };
 void scale_show(void)
 {
@@ -96,9 +95,9 @@ char buf[8];
 	}
 	// Масштаб
 	itoa(scale,buf,10);
-	ST7735_DrawString(0,  0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+	ST7735_DrawString(0, 0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
-	fScale=0; // Сбросить флаг
+	fScale=0; // Сбросить флаг необходимости перечерчиавания шкалы
 }
 
 void readOnePoket(void)
@@ -110,10 +109,10 @@ void readOnePoket(void)
 	  uint16_t stop_angle;
 	  int32_t diff;
 	  int16_t angle_per_sample;
-	  int16_t counter;
 	  uint16_t i;
-	  state = START1;  // Начальная стадия
-	   counter=0;
+      uint32_t index;        // Угол в градусах, он же индекс массива данных
+
+	  state = START1;        // Начальная стадия
 	   while (1)
 	  {
 	   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
@@ -137,31 +136,23 @@ void readOnePoket(void)
 			if (stop_angle < start_angle) diff =  0xB400 - start_angle + stop_angle; // если перешли через 0  (0xB400 скорее всего максимальный угол)
 			angle_per_sample = 0;                                                    // угол одного образца
 			if (diff > 1) angle_per_sample = diff / (data_lenght-1);                 // вычисление изменения угла на одно измерение в посылке
-			counter ++;
-			if (pack_type!= 0x38) { counter = 0; }                                   // не тот тип пакета/лидара
+			if (pack_type!= 0x38) {/* Сообщение о не верном типе лидара*/  }         // не тот тип пакета/лидара
 			state = DATA;
 			continue;
 	   }
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
-		   uint32_t index;                                                           // Угол в градусах, он же индекс массива данных
-		   int32_t data0,data1,data2;
 		   state = START1;
 	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
 		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);          // читаем все данные
 		   osDelay(15);
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
 	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
-	    	    data0 = rxBuf[i*3 + 0];
-				data1 = rxBuf[i*3 + 1];
-				data2 = rxBuf[i*3 + 2];
-
 				index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
 				if (index>359) { index=index-359; }                                 // переход через 0 и признак необходимости показа
-				if (index>359) { HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET); index=360; }  // Установить светодиод 2 в 0
-				data[index].distance = (data2  << 8) + data1;
-				data[index].quality=data0;
-
-	       }// for
+				if (index>359) { index=360; }  // Установить светодиод 2 в 0
+				data[index].distance = (rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1];
+				data[index].quality=rxBuf[i*3 + 0];
+	       } // for
     	} // if
 	       // Чтение кнопки энкодера - изменение масштаба
 			 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
@@ -186,7 +177,6 @@ time=HAL_GetTick();
    		     data[i].distance=0;
    		     if(fScale==1) scale_show(); // было изменение масштаба
          }// for
-
 // Показ времени полного круга (измерение)
 dt=HAL_GetTick()-time;
 itoa(dt,buf,10);
