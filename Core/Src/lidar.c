@@ -12,8 +12,8 @@ enum state_type   // Стадия приема пакета
 	DATA
 	} state;
 
-uint8_t show=0;  // Флаг полного оборота
-uint16_t angle_old=0;                      // старый угол (0-359)
+
+uint8_t scale=1;                           // масштаб графика
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;    // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X;  // текущие коордианты расстояния
 char rxBuf[512];
@@ -43,8 +43,7 @@ void radar_show(uint16_t angle, uint16_t dist)
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
 
 	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);                // Восстановить точку
-// Расчет новой конечной точки и точки на лидаре
-// В зависимости от квадранта угла
+// Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
 	if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
 	                                y1=CENTRE_Y - (RADIUS*cos1000[angle])/1000;
 	                                xPoint=CENTRE_X+(dist*sin1000[angle])/1000;
@@ -71,17 +70,7 @@ ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая лини
 
 xLine=x1;
 yLine=y1;
-/*
-angle_old=angle+3;    // Можно менять шаг в градусах
-if (angle>=360) { // Полный круг
-	angle=0;
-	dt=HAL_GetTick()-time; // Время полного круга (измерение)
-	time=HAL_GetTick();
-	itoa(dt,buf,10);
-	ST7735_DrawString(110, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
-	ST7735_DrawString(145, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-    }
-*/
+
 }
 
 // Показ Шкалы
@@ -97,11 +86,12 @@ uint8_t i;
 	ST7735_DrawString(2*CENTRE_X+10, 3*10, "3", Font_7x10, ST7735_RED, ST7735_BLACK);
 	ST7735_DrawString(2*CENTRE_X+10, 4*10, "2", Font_7x10, ST7735_RED, ST7735_BLACK);
 	ST7735_DrawString(2*CENTRE_X+10, 5*10, "1", Font_7x10, ST7735_RED, ST7735_BLACK);
+	showScale();
 }
 
 void readOnePoket(void)
 {
-
+      uint8_t pressKey=0;   // Отпускание клавиши
 	  uint8_t pack_type;
 	  int16_t data_lenght;
 	  uint16_t start_angle;
@@ -110,26 +100,23 @@ void readOnePoket(void)
 	  int16_t angle_per_sample;
 	  int16_t counter;
 	  uint16_t i;
-//	  uint8_t show=0;  // Флаг полного оборота
-	  //  HAL_UART_Receive_IT(&huart2,(uint8_t*) rxBuf,60);
-	  //  HAL_UART_Receive(&huart2, rxBuf, sizeof(rxBuf), HAL_MAX_DELAY);
-
 	  state = START1;  // Начальная стадия
 	   counter=0;
 	   while (1)
 	  {
+	   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
 	   if (state == START1)   // Поиск заголовка из двух байт
 	   {
-		   HAL_UART_Receive(&huart2, rxBuf, 1, HAL_MAX_DELAY);
+		   HAL_UART_Receive(&huart2,(uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
 		   if (rxBuf[0]==0xAA) { state = START2; } else { continue; /* Синхронизация 1*/}
 	   }
 	   else if (state == START2)
 	   {
-		   HAL_UART_Receive(&huart2, rxBuf, 1, HAL_MAX_DELAY);
+		   HAL_UART_Receive(&huart2, (uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
 		   if (rxBuf[0]==0x55) { state = HEADER; } else { state = START1; continue;/* Синхронизация 2*/}
 	   }
 	   else if (state == HEADER) {  // Разбор заголовка посылки
-		    HAL_UART_Receive(&huart2, rxBuf, 8, HAL_MAX_DELAY);
+		    HAL_UART_Receive(&huart2, (uint8_t*)rxBuf, 8, HAL_MAX_DELAY);
 			pack_type = rxBuf[0];                                                    // Тип посылки (тип лидара???)
 			data_lenght = rxBuf[1];                                                  // Число измерений в посылке
 			start_angle = (rxBuf[3] << 8) + rxBuf[2];                                // Начальный угол посылки
@@ -145,11 +132,11 @@ void readOnePoket(void)
 	   }
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
 		   uint32_t index;                                                           // Угол в градусах, он же индекс массива данных
-		   int32_t data0,data1,data2,angle;
+		   int32_t data0,data1,data2;
 		   state = START1;
 	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
-		   HAL_UART_Receive_IT(&huart2, rxBuf, data_lenght * 3);        // читаем все данные
-		   osDelay(15);
+		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);        // читаем все данные
+		   osDelay(20);
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
 	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
 	    	    data0 = rxBuf[i*3 + 0];
@@ -157,33 +144,47 @@ void readOnePoket(void)
 				data2 = rxBuf[i*3 + 2];
 
 				index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
-				if (index>359) { index=index-359; show=1;}                          // переход через 0 и признак необходимости показа
+				if (index>359) { index=index-359; }                                 // переход через 0 и признак необходимости показа
 				if (index>359) { HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET); index=360; }  // Установить светодиод 2 в 0
 				data[index].distance = (data2  << 8) + data1;
 				data[index].quality=data0;
 
 	       }// for
-
-	   }
-	  }
+    	} // if
+	       // Чтение кнопки энкодера - изменение масштаба
+			 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
+				 osDelay(20);
+				 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
+					if(scale<6) scale++; else scale=1;
+					showScale();
+					pressKey=1;
+				 }
+			 }
+	  }   // while
 }
-
+// Показать радар
 void showData(void){
 uint16_t i;
 uint32_t time;
 uint16_t dt=0;
 char buf[8];
-//if (show==1){
- //	   show=0;
 time=HAL_GetTick();
      for (i=0;i<360;i++){ // Показ графика
-   			 radar_show(i,data[i].distance/50);
+   			 radar_show(i,data[i].distance/(scale*50));
    		     data[i].distance=0;
          }// for
- //  }
 
-        dt=HAL_GetTick()-time; // Время полного круга (измерение)
-     	itoa(dt,buf,10);
-     	ST7735_DrawString(110, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
-     	ST7735_DrawString(145, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+// Показ времени полного круга (измерение)
+dt=HAL_GetTick()-time;
+itoa(dt,buf,10);
+ST7735_DrawString(105, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
+ST7735_DrawString(140, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+showScale();
+}
+// Показать масштаб
+void showScale(void){
+char buf[8];
+itoa(scale,buf,10);
+ST7735_DrawString(0,  0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 }
