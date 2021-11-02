@@ -192,6 +192,5 @@ dt=HAL_GetTick()-time;
 itoa(dt,buf,10);
 ST7735_DrawString(105, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 ST7735_DrawString(140, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-//scale_show();
 }
 
