@@ -3,6 +3,7 @@
 #include "cmsis_os.h"
 extern UART_HandleTypeDef huart2;
 
+#define CONST_SCALE  75  // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
 enum state_type   // Стадия приема пакета
 	{
 	START0,
@@ -14,6 +15,7 @@ enum state_type   // Стадия приема пакета
 
 
 uint8_t scale=1;                           // масштаб графика
+uint8_t fScale=0;                          // Необходимость перерисовать шкалу (изменение масштаба)
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;    // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X;  // текущие коордианты расстояния
 char rxBuf[512];
@@ -36,14 +38,13 @@ const uint16_t cos1000[90]={1000,999,999,998,996,995,993,990,988,985,982,978,974
 // Вход теущая дистанция
 void radar_show(uint16_t angle, uint16_t dist)
 {
-//	uint16_t dt=0;
-//	char buf[8];
 	uint32_t  x1,y1;
-	if(dist>RADIUS) dist=RADIUS;
-	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
 
+	if(dist>RADIUS) dist=RADIUS;                                    // Ограничить значения радиусом круга
+	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
 	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);                // Восстановить точку
-// Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
+
+   // Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
 	if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
 	                                y1=CENTRE_Y - (RADIUS*cos1000[angle])/1000;
 	                                xPoint=CENTRE_X+(dist*sin1000[angle])/1000;
@@ -70,7 +71,6 @@ ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая лини
 
 xLine=x1;
 yLine=y1;
-
 }
 
 // Показ Шкалы  (храняться значения шкалы в дм, 0 не выводим)
@@ -98,6 +98,7 @@ char buf[8];
 	itoa(scale,buf,10);
 	ST7735_DrawString(0,  0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
+	fScale=0; // Сбросить флаг
 }
 
 void readOnePoket(void)
@@ -146,8 +147,8 @@ void readOnePoket(void)
 		   int32_t data0,data1,data2;
 		   state = START1;
 	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
-		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);        // читаем все данные
-		   osDelay(20);
+		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);          // читаем все данные
+		   osDelay(15);
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
 	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
 	    	    data0 = rxBuf[i*3 + 0];
@@ -168,7 +169,7 @@ void readOnePoket(void)
 				 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
 					if(scale<6) scale++; else scale=1;
 					pressKey=1;
-					scale_show();
+					fScale=1; // Надо перерисовать шкалу
 				 }
 			 }
 	  }   // while
@@ -181,8 +182,9 @@ uint16_t dt=0;
 char buf[8];
 time=HAL_GetTick();
      for (i=0;i<360;i++){ // Показ графика
-   			 radar_show(i,data[i].distance/(scale*50));
+   			 radar_show(i,data[i].distance/(scale*CONST_SCALE));  // Масштабирование
    		     data[i].distance=0;
+   		     if(fScale==1) scale_show(); // было изменение масштаба
          }// for
 
 // Показ времени полного круга (измерение)
@@ -190,6 +192,6 @@ dt=HAL_GetTick()-time;
 itoa(dt,buf,10);
 ST7735_DrawString(105, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 ST7735_DrawString(140, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-scale_show();
+//scale_show();
 }
 

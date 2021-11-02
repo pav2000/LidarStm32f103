@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.22"   // Версия программы
+#define VERSION  "0.23"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -135,7 +135,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);    // Установить светодиод 2 в 0
    beep(200);
-   ST7735_Init();  // Не забываем в кубе настроить DMA
+   ST7735_Init();
    ST7735_Backlight_On(); // Включить подсветку дисплея
    ST7735_SetRotation(3);
    ST7735_FillScreen(ST7735_BLACK);
@@ -194,11 +194,6 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-
-	//  HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // �?нвертирование состояния выхода.
-	//  radar_show((rand()%100+2)/2);
-	 // radar_show();
-	//  HAL_Delay(100);                       // Пауза 50 миллисекунд.
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
