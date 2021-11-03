@@ -4,6 +4,8 @@
 extern UART_HandleTypeDef huart2;
 
 #define CONST_SCALE  75  // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
+#define AVERAGING        // Усреднение значений по одинаковцым углам
+
 enum state_type   // Стадия приема пакета
 	{
 	START1,
@@ -112,7 +114,10 @@ void readOnePoket(void)
 	  int16_t angle_per_sample;
 	  uint16_t i;
       uint32_t index;        // Угол в градусах, он же индекс массива данных
-
+      #ifdef AVERAGING       // Для усреднения
+	   uint32_t sum=0,n=0;
+	   uint32_t indexOld=0;
+      #endif
 	  state = START1;        // Начальная стадия
 	   while (1)
 	  {
@@ -143,17 +148,43 @@ void readOnePoket(void)
 	   }
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
 		   state = START1;
-	//	   HAL_UART_Receive(&huart2, rxBuf, data_lenght * 3, HAL_MAX_DELAY);        // читаем все данные
 		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);          // читаем все данные
-		   osDelay(15);
-		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin); // Инвертирование состояния выхода.
-	       for (i=0;i<data_lenght;i++){                                             // По всем измерениям пакета
-				index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
-				if (index>359) { index=index-359; }                                 // переход через 0 и признак необходимости показа
-				if (index>359) { index=360; }  // Установить светодиод 2 в 0
-				data[index].distance = (rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1];
-				data[index].quality=rxBuf[i*3 + 0];
+		   osDelay(8);
+		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода
+
+		   // При огруглени углов до градусов получается несколько точек с одним углом, пытаемся их усреднить (признак AVERAGING)
+			#ifdef AVERAGING
+			 sum=0,n=0;                                                            // Признак первой итерации
+			#endif
+	       for (i=0;i<data_lenght;i++){                                            // По всем измерениям пакета
+	    	   index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
+	    	   if (index>359) index=index-359;                                     // переход через 0
+	    	   if (index>359) index=360;
+               #ifdef AVERAGING    // накопление суммы
+				   if (n==0) index=indexOld;                                       // Первая итерация
+				   if (index==indexOld) { // новый угол равен старому - накопление суммы
+					   sum=sum+((rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1]);
+					   n++;
+				   }
+				   else {                // запоминание и усреднение точки
+					   data[indexOld].distance = sum/n;
+					   data[indexOld].quality=rxBuf[i*3 + 0];
+					   sum=(rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1]; // Добавить новое значение
+					   n=1;
+					   indexOld=index;
+				   }
+                #else   // без усреднения
+						index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
+						if (index>359) { index=index-359; }                                 // переход через 0 и признак необходимости показа
+						if (index>359) { index=360; }  // Установить светодиод 2 в 0
+						data[index].distance = (rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1];
+						data[index].quality=rxBuf[i*3 + 0];
+                #endif
+
 	       } // for
+           #ifdef AVERAGING
+	          if (sum>0) {data[index].distance = sum/n;data[index].quality=rxBuf[i*3 + 0];}// Последняя точка
+           #endif
     	} // if
 	       // Чтение кнопки энкодера - изменение масштаба
 			 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
