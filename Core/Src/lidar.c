@@ -149,7 +149,8 @@ void readOnePoket(void)
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
 		   state = START1;
 		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);          // читаем все данные
-		   osDelay(8);
+		//   while (huart2.RxXferCount>0) osDelay(1);
+		   osDelay(15);                                                             // Время должно быть больше времени приема данных 15 работает
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода
 
 		   // При огруглени углов до градусов получается несколько точек с одним углом, пытаемся их усреднить (признак AVERAGING)
