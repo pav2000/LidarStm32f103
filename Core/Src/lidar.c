@@ -41,7 +41,7 @@ void radar_show(uint16_t angle, uint16_t dist)
 
 	if(dist>RADIUS) dist=RADIUS;                                    // Ограничить значения радиусом круга
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
-	if(yPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку
+	if(zPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку
 	else          ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
 
    // Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
