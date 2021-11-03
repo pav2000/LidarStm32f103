@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.26"   // Версия программы
+#define VERSION  "0.27"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -148,7 +148,7 @@ int main(void)
    HAL_GPIO_WritePin(GPIOB, LED2_Pin, GPIO_PIN_SET);    // Установить светодиод 2 в 1
    HAL_Delay(3000);
    ST7735_FillScreen(ST7735_BLACK);
-   ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_WHITE);
+   ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_BLUE);
    scale_show();
    time=HAL_GetTick();
 

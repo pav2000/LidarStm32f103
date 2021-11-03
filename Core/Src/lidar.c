@@ -13,10 +13,10 @@ enum state_type   // Стадия приема пакета
 	} state;
 
 
-uint8_t scale=1;                           // текущий масштаб графика
-uint8_t fScale=0;                          // Необходимость перерисовать шкалу (изменение масштаба)
-uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;    // текущие коордианты линии
-uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X;  // текущие коордианты расстояния
+uint8_t scale=1;                                    // текущий масштаб графика
+uint8_t fScale=0;                                   // Необходимость перерисовать шкалу (изменение масштаба)
+uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;             // текущие коордианты линии
+uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X,zPoint=0;  // текущие коордианты расстояния и цвет точки
 char rxBuf[512];
 struct dataPoint{
 	uint16_t distance;
@@ -41,7 +41,8 @@ void radar_show(uint16_t angle, uint16_t dist)
 
 	if(dist>RADIUS) dist=RADIUS;                                    // Ограничить значения радиусом круга
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
-	ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);                // Восстановить точку
+	if(yPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку
+	else          ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
 
    // Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
 	if ((angle>=0)&&(angle<90))    {x1=CENTRE_X+(RADIUS*sin1000[angle])/1000;
@@ -64,7 +65,7 @@ void radar_show(uint16_t angle, uint16_t dist)
 
 ST7735_DrawPixel(data[angle].x,data[angle].y, ST7735_BLACK); // Стереть старую точку
 data[angle].x=xPoint; data[angle].y=yPoint;                  // Запомнить новую точку
-
+if (dist==RADIUS) zPoint=1; else zPoint=0;                   // Цвет привышения дистанции голубой
 ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая линия
 //ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
 
