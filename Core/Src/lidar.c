@@ -36,7 +36,7 @@ const uint16_t cos1000[90]={1000,999,999,998,996,995,993,990,988,985,982,978,974
 							485,469,454,438,423,407,391,375,358,342,326,309,292,276,259,242,225,208,191,174,156,139,122,105,87,70,52,35,17,0};
 
 // Показ радара, смена положения луча и добавление еще одной точки
-// Вход теущая дистанция
+// Вход угол текущая дистанция
 void radar_show(uint16_t angle, uint16_t dist)
 {
 	uint32_t  x1,y1;
@@ -68,8 +68,8 @@ void radar_show(uint16_t angle, uint16_t dist)
 ST7735_DrawPixel(data[angle].x,data[angle].y, ST7735_BLACK); // Стереть старую точку
 data[angle].x=xPoint; data[angle].y=yPoint;                  // Запомнить новую точку
 if (dist==RADIUS) zPoint=1; else zPoint=0;                   // Цвет привышения дистанции голубой
-ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	// Новая линия
-//ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
+ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	 // Новая линия
+//ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
 
 xLine=x1;
 yLine=y1;
@@ -88,7 +88,6 @@ void scale_show(void)
 uint8_t i;
 char buf[8];
 	ST7735_DrawFastVLine(2*CENTRE_X+4,0, CENTRE_Y, ST7735_WHITE);
-//	for (i=0;i<CENTRE_Y/10;i++){
 	for (i=0;i<6;i++){
 		ST7735_DrawFastHLine(2*CENTRE_X+4,3+10*i, 4, ST7735_WHITE);
 		if (scaleLavel[scale-1][i]>0){
@@ -106,14 +105,17 @@ char buf[8];
 void readOnePoket(void)
 {
       uint8_t pressKey=0;   // Отпускание клавиши
-	  uint8_t pack_type;
-	  int16_t data_lenght;
-	  uint16_t start_angle;
-	  uint16_t stop_angle;
 	  int32_t diff;
 	  int16_t angle_per_sample;
 	  uint16_t i;
-      uint32_t index;        // Угол в градусах, он же индекс массива данных
+      uint32_t index;          // Угол в градусах, он же индекс массива данных
+      struct type_header{      // Заголовок посылки
+		  uint8_t pack_type;   // Тип пакета
+		  uint8_t data_lenght; // Длина данных (по три байта)
+		  uint16_t start_angle;// Начальный угол
+		  uint16_t stop_angle; // Конечный угол
+		  uint16_t temp;       // Неизвестно
+      }header;
       #ifdef AVERAGING       // Для усреднения
 	   uint32_t sum=0,n=0;
 	   uint32_t indexOld=0;
@@ -122,43 +124,40 @@ void readOnePoket(void)
 	   while (1)
 	  {
 	   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
+
 	   if (state == START1)   // Поиск заголовка из двух байт
 	   {
 		   HAL_UART_Receive(&huart2,(uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
-		   if (rxBuf[0]==0xAA) { state = START2; } else { continue; /* Синхронизация 1*/}
+		   if (rxBuf[0]==0xAA) { state = START2; } else { continue; }
 	   }
 	   else if (state == START2)
 	   {
 		   HAL_UART_Receive(&huart2, (uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
-		   if (rxBuf[0]==0x55) { state = HEADER; } else { state = START1; continue;/* Синхронизация 2*/}
+		   if (rxBuf[0]==0x55) { state = HEADER; } else { state = START1; continue;}
 	   }
 	   else if (state == HEADER) {  // Разбор заголовка посылки
-		    HAL_UART_Receive(&huart2, (uint8_t*)rxBuf, 8, HAL_MAX_DELAY);
-			pack_type = rxBuf[0];                                                    // Тип посылки (тип лидара???)
-			data_lenght = rxBuf[1];                                                  // Число измерений в посылке
-			start_angle = (rxBuf[3] << 8) + rxBuf[2];                                // Начальный угол посылки
-			stop_angle  = (rxBuf[5] << 8) + rxBuf[4];                                // Конечный угол посылки
-			diff = stop_angle - start_angle;                                         // Диапазон углов
-			if (stop_angle < start_angle) diff =  0xB400 - start_angle + stop_angle; // если перешли через 0  (0xB400 скорее всего максимальный угол)
+		    HAL_UART_Receive(&huart2, (uint8_t*)&header, 8, HAL_MAX_DELAY);
+			diff = header.stop_angle - header.start_angle;                           // Диапазон углов
+			if (header.stop_angle<header.start_angle) diff=0xB400-header.start_angle+header.stop_angle; // если перешли через 0  (0xB400 скорее всего максимальный угол)
 			angle_per_sample = 0;                                                    // угол одного образца
-			if (diff > 1) angle_per_sample = diff / (data_lenght-1);                 // вычисление изменения угла на одно измерение в посылке
-			if (pack_type!= 0x38) {/* Сообщение о не верном типе лидара*/  }         // не тот тип пакета/лидара
+			if (diff > 1) angle_per_sample = diff / (header.data_lenght-1);          // вычисление изменения угла на одно измерение в посылке
+			if (header.pack_type!= 0x38) { }                                         // не тот тип пакета/лидара
 			state = DATA;
 			continue;
 	   }
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
 		   state = START1;
-		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, data_lenght * 3);          // читаем все данные
+		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, header.data_lenght * 3);          // читаем все данные
 		//   while (huart2.RxXferCount>0) osDelay(1);
-		   osDelay(15);                                                             // Время должно быть больше времени приема данных 15 работает
+		   osDelay(12);                                                             // Время должно быть больше времени приема данных 12 работает
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода
 
 		   // При огруглени углов до градусов получается несколько точек с одним углом, пытаемся их усреднить (признак AVERAGING)
 			#ifdef AVERAGING
 			 sum=0,n=0;                                                            // Признак первой итерации
 			#endif
-	       for (i=0;i<data_lenght;i++){                                            // По всем измерениям пакета
-	    	   index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
+	       for (i=0;i<header.data_lenght;i++){                                            // По всем измерениям пакета
+	    	   index = (header.start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
 	    	   if (index>359) index=index-359;                                     // переход через 0
 	    	   if (index>359) index=360;
                #ifdef AVERAGING    // накопление суммы
@@ -175,8 +174,8 @@ void readOnePoket(void)
 					   indexOld=index;
 				   }
                 #else   // без усреднения
-						index = (start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
-						if (index>359) { index=index-359; }                                 // переход через 0 и признак необходимости показа
+						index = (header.start_angle + angle_per_sample * i)*360/0xB400;    // расчет угла в градусах
+						if (index>359) { index=index-359; }                                // переход через 0 и признак необходимости показа
 						if (index>359) { index=360; }  // Установить светодиод 2 в 0
 						data[index].distance = (rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1];
 						data[index].quality=rxBuf[i*3 + 0];

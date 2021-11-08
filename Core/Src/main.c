@@ -29,7 +29,7 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.28"   // Версия программы
+#define VERSION  "0.29"   // Версия программы
 
 /* USER CODE END PTD */
 
