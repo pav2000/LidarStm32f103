@@ -11,7 +11,7 @@ extern uint8_t fScale;                            // Необходимость 
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;             // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X,zPoint=0;  // текущие коордианты расстояния и цвет точки
 #ifndef UART_DMA
-   char rxBuf[512];
+   char rxBuf[RxBuf_SIZE];  // Буфер для чтения без DMA
 #endif
 
 
@@ -178,6 +178,7 @@ void readOnePoket(void)
 	  }   // while
 }
 #endif
+
 // Показать радар
 void showData(void){
 uint16_t i;

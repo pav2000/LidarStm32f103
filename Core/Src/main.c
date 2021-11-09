@@ -102,7 +102,6 @@ void beep(uint16_t t)
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin);
 }
 #ifdef UART_DMA
-	#define RxBuf_SIZE   512
 	uint8_t RxBuf0[RxBuf_SIZE];  // два буффера работают попеременно, пока один пишется другой разбирается
 	uint8_t RxBuf1[RxBuf_SIZE];
 	uint8_t *RxBuf;
@@ -138,7 +137,7 @@ void beep(uint16_t t)
 
 		// Чтение измерений
     	//	   if(header->data_lenght>40) break;
-		   if ((10+header->data_lenght*3)>Size) break;                             // Это ошибка длины принятого пакета, пропускаем
+		   if ((10+header->data_lenght*3)>Size) break;                             // Это ошибка длины принятого пакета, пропускаем пакет
 		   for (j=0;j<header->data_lenght;j++){                                    // По всем измерениям пакета
 			   index = (header->start_angle + angle_per_sample * j)*360/0xB400;    // расчет угла в градусах
 			   if (index>359) index=index-359;                                     // переход через 0
@@ -206,10 +205,10 @@ int main(void)
    HAL_Delay(3000);
    ST7735_FillScreen(ST7735_BLACK);
    ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_BLUE);
-   #ifdef UART_DMA
-   ST7735_DrawString(120, 108, " DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+   #ifdef UART_DMA  // Вывести режим работы
+   ST7735_DrawString(120, 106, " DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
    #else
-   ST7735_DrawString(115, 108, "no DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+   ST7735_DrawString(115, 106, "no DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
    #endif
    scale_show();
    time=HAL_GetTick();
