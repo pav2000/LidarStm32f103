@@ -779,6 +779,7 @@ void ST7735_DrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t co
 	}
 
 	for (; x0<=x1; x0++)
+
 	{
 		if (steep)
 		{

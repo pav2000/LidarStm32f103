@@ -1,30 +1,18 @@
 
+#include "main.h"
 #include "lidar.h"
 #include "cmsis_os.h"
+
 extern UART_HandleTypeDef huart2;
+extern dataPoint data[360+1];
+extern uint8_t scale;                             // текущий масштаб графика
+extern uint8_t fScale;                            // Необходимость перерисовать шкалу (изменение масштаба)
 
-#define CONST_SCALE  75  // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
-#define AVERAGING        // Усреднение значений по одинаковцым углам
-
-enum state_type   // Стадия приема пакета
-	{
-	START1,
-	START2,
-	HEADER,
-	DATA
-	} state;
-
-
-uint8_t scale=1;                                    // текущий масштаб графика
-uint8_t fScale=0;                                   // Необходимость перерисовать шкалу (изменение масштаба)
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;             // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X,zPoint=0;  // текущие коордианты расстояния и цвет точки
-char rxBuf[512];
-struct dataPoint{
-	uint16_t distance;
-	uint16_t quality;
-	uint8_t x,y;  // Координаты точки
-	} data[360+1];
+#ifndef UART_DMA
+   char rxBuf[512];
+#endif
 
 
 // таблица синусов и косинусов через градус для ускорения
@@ -43,7 +31,7 @@ void radar_show(uint16_t angle, uint16_t dist)
 
 	if(dist>RADIUS) dist=RADIUS;                                    // Ограничить значения радиусом круга
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
-	if(zPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку
+	if(zPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку сучетм цвета
 	else          ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
 
    // Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
@@ -101,21 +89,17 @@ char buf[8];
 	ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	fScale=0; // Сбросить флаг необходимости перечерчиавания шкалы
 }
-
+#ifndef UART_DMA
 void readOnePoket(void)
 {
-      uint8_t pressKey=0;   // Отпускание клавиши
-	  int32_t diff;
+ 	  int32_t diff;
 	  int16_t angle_per_sample;
 	  uint16_t i;
       uint32_t index;          // Угол в градусах, он же индекс массива данных
-      struct type_header{      // Заголовок посылки
-		  uint8_t pack_type;   // Тип пакета
-		  uint8_t data_lenght; // Длина данных (по три байта)
-		  uint16_t start_angle;// Начальный угол
-		  uint16_t stop_angle; // Конечный угол
-		  uint16_t temp;       // Неизвестно
-      }header;
+      typeHeader header;
+      onePoint *point;         // Указатель на одно измерение приходящее с лидара
+      uint8_t pressKey=0;      // Отпускание клавиши
+
       #ifdef AVERAGING       // Для усреднения
 	   uint32_t sum=0,n=0;
 	   uint32_t indexOld=0;
@@ -124,7 +108,6 @@ void readOnePoket(void)
 	   while (1)
 	  {
 	   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
-
 	   if (state == START1)   // Поиск заголовка из двух байт
 	   {
 		   HAL_UART_Receive(&huart2,(uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
@@ -148,37 +131,34 @@ void readOnePoket(void)
 	   else if (state == DATA) {                                                     // Чтение измерений в пакете
 		   state = START1;
 		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, header.data_lenght * 3);          // читаем все данные
-		//   while (huart2.RxXferCount>0) osDelay(1);
-		   osDelay(12);                                                             // Время должно быть больше времени приема данных 12 работает
+		   osDelay(11);                                                             // Время должно быть больше времени приема данных 12 работает
 		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода
 
 		   // При огруглени углов до градусов получается несколько точек с одним углом, пытаемся их усреднить (признак AVERAGING)
 			#ifdef AVERAGING
 			 sum=0,n=0;                                                            // Признак первой итерации
 			#endif
-	       for (i=0;i<header.data_lenght;i++){                                            // По всем измерениям пакета
+		   for (i=0;i<header.data_lenght;i++){                                            // По всем измерениям пакета
 	    	   index = (header.start_angle + angle_per_sample * i)*360/0xB400;            // расчет угла в градусах
-	    	   if (index>359) index=index-359;                                     // переход через 0
-	    	   if (index>359) index=360;
+	    	   if (index>359) index=index-359;                                            // переход через 0
+	    	   if (index>359) index=359;
+	    	   point=(onePoint*)&rxBuf[i*3];
                #ifdef AVERAGING    // накопление суммы
 				   if (n==0) index=indexOld;                                       // Первая итерация
 				   if (index==indexOld) { // новый угол равен старому - накопление суммы
-					   sum=sum+((rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1]);
+					   sum=sum+point->distance;
 					   n++;
 				   }
 				   else {                // запоминание и усреднение точки
 					   data[indexOld].distance = sum/n;
-					   data[indexOld].quality=rxBuf[i*3 + 0];
-					   sum=(rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1]; // Добавить новое значение
+					   data[indexOld].quality=point->quality;
+					   sum=point->distance; // Добавить новое значение
 					   n=1;
 					   indexOld=index;
 				   }
                 #else   // без усреднения
-						index = (header.start_angle + angle_per_sample * i)*360/0xB400;    // расчет угла в градусах
-						if (index>359) { index=index-359; }                                // переход через 0 и признак необходимости показа
-						if (index>359) { index=360; }  // Установить светодиод 2 в 0
-						data[index].distance = (rxBuf[i*3 + 2] << 8) + rxBuf[i*3 + 1];
-						data[index].quality=rxBuf[i*3 + 0];
+					data[index].distance = point->distance;
+					data[index].quality=point->quality;
                 #endif
 
 	       } // for
@@ -186,17 +166,18 @@ void readOnePoket(void)
 	          if (sum>0) {data[index].distance = sum/n;data[index].quality=rxBuf[i*3 + 0];}// Последняя точка
            #endif
     	} // if
-	       // Чтение кнопки энкодера - изменение масштаба
-			 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
-				 osDelay(20);
-				 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
-					if(scale<6) scale++; else scale=1;
-					pressKey=1;
-					fScale=1; // Надо перерисовать шкалу
-				 }
-			 }
+           // Чтение кнопки энкодера - изменение масштаба
+	  		 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
+	  			 osDelay(20);
+	  			 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
+	  				if(scale<MAXZOOM) scale++; else scale=1;
+	  				pressKey=1;
+	  				fScale=1; // Надо перерисовать шкалу
+	  			 }
+	  		 }
 	  }   // while
 }
+#endif
 // Показать радар
 void showData(void){
 uint16_t i;

@@ -40,11 +40,43 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+enum state_type   // Стадия приема пакета (без DMA)
+	{
+	START1,
+	START2,
+	HEADER,
+	DATA
+	} state;
 
+typedef struct {  // Заголовок посылки
+				  uint8_t pack_type;    // Тип пакета
+				  uint8_t data_lenght;  // Длина данных (по три байта)
+				  uint16_t start_angle; // Начальный угол
+				  uint16_t stop_angle;  // Конечный угол
+				  uint16_t temp ;       // Неизвестно
+                } typeHeader;
+
+typedef struct {  // Массив с точками 360 градусов его и выводим
+					uint16_t distance;
+					uint16_t quality;
+					uint8_t x,y;  // Координаты точки на дисплее
+					} dataPoint;
+#pragma pack(push, 1)
+typedef struct {  // Одно измерние приходящее из лидара
+				uint8_t	quality;   // качество сигнала
+				uint16_t distance; // дистанция
+                } onePoint;
+#pragma pack(pop)
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+// Глобальные настройки проекта
+#define VERSION  "0.30"   // Версия программы
+#define UART_DMA          // использовать DMA для чтения данных - не удачный вариант
+#define CONST_SCALE  75   // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
+#define AVERAGING         // Усреднение значений по одинаковым углам (актуально без DMA)
+#define MAXZOOM      6    // Максимальный масштаб (scale)
 
 /* USER CODE END EC */
 

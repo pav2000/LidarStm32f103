@@ -29,7 +29,6 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
-#define VERSION  "0.29"   // Версия программы
 
 /* USER CODE END PTD */
 
@@ -47,6 +46,7 @@ SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_tx;
 
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_rx;
 
 /* Definitions for readLidar */
 osThreadId_t readLidarHandle;
@@ -74,7 +74,9 @@ const osThreadAttr_t showLidar_attributes = {
 };
 /* USER CODE BEGIN PV */
 uint32_t time;
-
+dataPoint data[360+1];     // массив данных лидара
+uint8_t scale=1;           // текущий масштаб графика от 1 до 6
+uint8_t fScale=0;          // Необходимость перерисовать шкалу (изменение масштаба)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,6 +101,60 @@ void beep(uint16_t t)
 	HAL_Delay(t);
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin);
 }
+#ifdef UART_DMA
+	#define RxBuf_SIZE   512
+	uint8_t RxBuf0[RxBuf_SIZE];  // два буффера работают попеременно, пока один пишется другой разбирается
+	uint8_t RxBuf1[RxBuf_SIZE];
+	uint8_t *RxBuf;
+
+	void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+	{
+	typeHeader  *header;     // указатель на заголовок пакета
+	int32_t diff;
+	int16_t angle_per_sample;
+	uint32_t index;          // Угол в градусах, он же индекс массива данных
+	uint8_t *Buf;            // Указатель  на буфер для разбора
+	onePoint *point;         // Указатель на одно измерение приходящее с лидара
+	int i,j;
+		if (huart->Instance == USART2)
+		{
+		Buf=RxBuf;   // получить ссылку где лежат последние данные для последующей обработки
+		if (RxBuf==RxBuf0) RxBuf=RxBuf1; else RxBuf=RxBuf0; // переключиться на другой буфер
+			/* start the DMA again */
+			HAL_UARTEx_ReceiveToIdle_DMA(&huart2, (uint8_t *) RxBuf, RxBuf_SIZE);  // Чтение до idle это важно!
+			__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+			HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода - чтение нового пакета
+
+    // Разбор полученных данных они лежат в Buf
+	for(i=0;i<Size;i++)  // По всему принятому буферу
+		{
+		if((Buf[i+0]==0xAA)&&(Buf[i+1]==0x55)){    // найден заголовок
+		header=(typeHeader*)&Buf[i+2];             // наложить структуру заголовка на принятые данные
+//		if(header->pack_type!=0x38) break;         // не правильный пакет
+		diff = header->stop_angle - header->start_angle;                           // Диапазон углов
+		if (header->stop_angle<header->start_angle) diff=0xB400-header->start_angle+header->stop_angle; // если перешли через 0  (0xB400 скорее всего максимальный угол)
+		angle_per_sample = 0;                                                    // угол одного образца
+		if (diff > 1) angle_per_sample = diff / (header->data_lenght-1);          // вычисление изменения угла на одно измерение в посылке
+
+		// Чтение измерений
+    	//	   if(header->data_lenght>40) break;
+		   if ((10+header->data_lenght*3)>Size) break;                             // Это ошибка длины принятого пакета, пропускаем
+		   for (j=0;j<header->data_lenght;j++){                                    // По всем измерениям пакета
+			   index = (header->start_angle + angle_per_sample * j)*360/0xB400;    // расчет угла в градусах
+			   if (index>359) index=index-359;                                     // переход через 0
+			   if (index>359) index=359;
+			   point=(onePoint*)&Buf[i+10+j*3];                                     // наложить структуру одного измерения
+			   data[index].distance=point->distance;
+			   data[index].quality=point->quality;
+		       } // for
+    		} // if((RxBuf[i+0]==0xAA)&&(RxBuf[i+1]==0x55))
+		break;
+		} // for
+
+		} // if (huart->Instance == USART2)
+	}
+#endif
+
 /* USER CODE END 0 */
 
 /**
@@ -153,6 +209,11 @@ int main(void)
    scale_show();
    time=HAL_GetTick();
 
+   #ifdef UART_DMA
+   RxBuf=RxBuf0; // Установить текущий буфер
+   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, RxBuf, RxBuf_SIZE);
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+   #endif
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -325,6 +386,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
 
 }
 
@@ -394,11 +458,29 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+ #ifdef UART_DMA
+	 uint8_t pressKey=0;      // Отпускание клавиши
+ #endif
   /* Infinite loop */
   for(;;)
   {
+  #ifndef UART_DMA
    readOnePoket();
    osDelay(1);
+  #else
+   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
+   osDelay(30);
+   // Чтение кнопки энкодера - изменение масштаба
+	 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
+		 osDelay(30);
+		 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
+			if(scale<MAXZOOM) scale++; else scale=1;
+			pressKey=1;
+			fScale=1; // Надо перерисовать шкалу
+		 }
+	 }
+	 osDelay(50);
+  #endif
   }
   /* USER CODE END 5 */
 }
@@ -417,7 +499,7 @@ void StartTask02(void *argument)
   for(;;)
   {
 	showData();
-    osDelay(1);
+ //   osDelay(1);
   }
   /* USER CODE END StartTask02 */
 }
