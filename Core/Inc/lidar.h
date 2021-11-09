@@ -17,9 +17,6 @@ void readOnePoket(void);
 void showData(void);
 
 
-#define CENTRE_X 64      // Координаты цента полярных координат
-#define CENTRE_Y 64      //
-#define RADIUS 64        //
 
 extern uint32_t time;
 

@@ -206,6 +206,11 @@ int main(void)
    HAL_Delay(3000);
    ST7735_FillScreen(ST7735_BLACK);
    ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_BLUE);
+   #ifdef UART_DMA
+   ST7735_DrawString(120, 108, " DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+   #else
+   ST7735_DrawString(115, 108, "no DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+   #endif
    scale_show();
    time=HAL_GetTick();
 
