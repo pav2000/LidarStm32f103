@@ -2,16 +2,17 @@
 #include "main.h"
 #include "lidar.h"
 #include "cmsis_os.h"
+#include "image.h"
 
 extern UART_HandleTypeDef huart2;
 extern dataPoint data[360+1];
-extern uint8_t scale;                             // текущий масштаб графика
-extern uint8_t fScale;                            // Необходимость перерисовать шкалу (изменение масштаба)
+extern uint8_t scale;                               // текущий масштаб графика
+extern uint8_t fScale;                              // Необходимость перерисовать шкалу (изменение масштаба)
 
 uint8_t  xLine=CENTRE_X,yLine=CENTRE_X;             // текущие коордианты линии
 uint8_t  xPoint=CENTRE_X,yPoint=CENTRE_X,zPoint=0;  // текущие коордианты расстояния и цвет точки
 #ifndef UART_DMA
-   char rxBuf[RxBuf_SIZE];  // Буфер для чтения без DMA
+   char rxBuf[RxBuf_SIZE];                          // Буфер для чтения без DMA
 #endif
 
 
@@ -23,15 +24,15 @@ const uint16_t cos1000[90]={1000,999,999,998,996,995,993,990,988,985,982,978,974
 		                    857,848,839,829,819,809,799,788,777,766,755,743,731,719,707,695,682,669,656,643,629,616,602,588,574,559,545,530,515,500,
 							485,469,454,438,423,407,391,375,358,342,326,309,292,276,259,242,225,208,191,174,156,139,122,105,87,70,52,35,17,0};
 
-// Показ радара, смена положения луча и добавление еще одной точки
+// Показ одной точки, смена положения луча и добавление еще одной точки
 // Вход угол текущая дистанция
-void radar_show(uint16_t angle, uint16_t dist)
+void showOnePoint(uint16_t angle, uint16_t dist)
 {
 	uint32_t  x1,y1;
 
 	if(dist>RADIUS) dist=RADIUS;                                    // Ограничить значения радиусом круга
 	ST7735_DrawLine(CENTRE_X, CENTRE_Y,xLine, yLine, ST7735_BLACK);	// Стереть старую линию
-	if(zPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку сучетм цвета
+	if(zPoint==1) ST7735_DrawPixel(xPoint, yPoint, ST7735_CYAN);    // Восстановить точку с учетом цвета
 	else          ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
 
    // Расчет новой конечной точки и точки на лидаре  В зависимости от квадранта угла
@@ -57,20 +58,20 @@ ST7735_DrawPixel(data[angle].x,data[angle].y, ST7735_BLACK); // Стереть �
 data[angle].x=xPoint; data[angle].y=yPoint;                  // Запомнить новую точку
 if (dist==RADIUS) zPoint=1; else zPoint=0;                   // Цвет привышения дистанции голубой
 ST7735_DrawLine(CENTRE_X, CENTRE_Y,x1, y1, ST7735_GREEN);	 // Новая линия
-//ST7735_DrawPixel(xPoint, yPoint, ST7735_YELLOW);
+//ST7735_DrawPixel(xPoint, yPoint, ST7735_RED);
 
 xLine=x1;
 yLine=y1;
 }
 
 // Показ Шкалы  (храняться значения шкалы в дм, 0 не выводим)
-uint8_t scaleLavel[6][6]={{ 0,0,5,0,0,10},    // шкала до метра
-		                  {0,0,10,0,0,20},    // шкала до 2 метра
-		                  {0,10,0,20,0,30},   // шкала до 3 метра
-		                  {0,0,20,0,0,40},    // шкала до 4 метра
-		                  {0,10,20,30,40,50}, // шкала до 5 метра
-		                  {0,20,0,40,0,60}    // шкала до 6 метра
-                          };
+const uint8_t scaleLavel[6][6] = {{ 0,0,5,0,0,10},    // шкала до метра
+								  {0,0,10,0,0,20},    // шкала до 2 метра
+								  {0,10,0,20,0,30},   // шкала до 3 метра
+								  {0,0,20,0,0,40},    // шкала до 4 метра
+								  {0,10,20,30,40,50}, // шкала до 5 метра
+								  {0,20,0,40,0,60}    // шкала до 6 метра
+								  };
 void scale_show(void)
 {
 uint8_t i;
@@ -180,15 +181,15 @@ void readOnePoket(void)
 #endif
 
 // Показать радар
-void showData(void){
+void showRadar(void){
 uint16_t i;
 uint32_t time;
 uint16_t dt=0;
 char buf[8];
 time=HAL_GetTick();
      for (i=0;i<360;i++){ // Показ графика
-   			 radar_show(i,data[i].distance/(scale*CONST_SCALE));  // Масштабирование
-   		     data[i].distance=0;
+   			 showOnePoint(i,data[i].distance/(scale*CONST_SCALE));  // Масштабирование
+   		     data[i].distance=0;                                    // Обнулить данные
    		     if(fScale==1) scale_show(); // было изменение масштаба
          }// for
 // Показ времени полного круга (измерение)
@@ -198,3 +199,28 @@ ST7735_DrawString(105, 118, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 ST7735_DrawString(140, 118, "ms", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 }
 
+// Показать стартовый экран, инициализация дисплея
+void showStartScreen(void){
+	   ST7735_Init();
+	   ST7735_Backlight_On(); // Включить подсветку дисплея
+	   ST7735_SetRotation(3);
+	   ST7735_FillScreen(ST7735_BLACK);
+	   ST7735_DrawImage(0, 10, 160, 58, (const uint16_t*)gImage_lidar); // вывести заставку
+	   ST7735_DrawString(10, 75, "LIDAR MB-1R2T", Font_11x18, ST7735_YELLOW, ST7735_BLACK);
+	  // ST7735_DrawFastHLine(10,50, 140, ST7735_YELLOW);
+	   ST7735_DrawFastHLine(10,94, 140, ST7735_YELLOW);
+	   ST7735_DrawString(0, 98, "Encoder button - zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+	   ST7735_DrawString(0, 108, "Hardware version: 1.3", Font_7x10, ST7735_RED, ST7735_BLACK);
+	   ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
+	   ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
+	   HAL_GPIO_WritePin(GPIOB, LED2_Pin, GPIO_PIN_SET);    // Установить светодиод 2 в 1
+	   HAL_Delay(3000);
+	   ST7735_FillScreen(ST7735_BLACK);
+	   ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_BLUE);
+	   #ifdef UART_DMA  // Вывести режим работы
+	   ST7735_DrawString(120, 106, " DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+	   #else
+	   ST7735_DrawString(115, 106, "no DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
+	   #endif
+	   scale_show();
+}

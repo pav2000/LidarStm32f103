@@ -73,7 +73,6 @@ const osThreadAttr_t showLidar_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
-uint32_t time;
 dataPoint data[360+1];     // массив данных лидара
 uint8_t scale=1;           // текущий масштаб графика от 1 до 6
 uint8_t fScale=0;          // Необходимость перерисовать шкалу (изменение масштаба)
@@ -102,27 +101,27 @@ void beep(uint16_t t)
 	HAL_GPIO_TogglePin(GPIOB, BUZZER_Pin);
 }
 #ifdef UART_DMA
-	uint8_t RxBuf0[RxBuf_SIZE];  // два буффера работают попеременно, пока один пишется другой разбирается
+	uint8_t RxBuf0[RxBuf_SIZE];  // два буфера работают попеременно, пока один пишется другой разбирается
 	uint8_t RxBuf1[RxBuf_SIZE];
-	uint8_t *RxBuf;
+	uint8_t *RxBuf;              // Указатель на текущий буфер для чтения
 
 	void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 	{
-	typeHeader  *header;     // указатель на заголовок пакета
 	int32_t diff;
 	int16_t angle_per_sample;
 	uint32_t index;          // Угол в градусах, он же индекс массива данных
+	typeHeader  *header;     // указатель на заголовок пакета
 	uint8_t *Buf;            // Указатель  на буфер для разбора
 	onePoint *point;         // Указатель на одно измерение приходящее с лидара
 	int i,j;
 		if (huart->Instance == USART2)
 		{
 		Buf=RxBuf;   // получить ссылку где лежат последние данные для последующей обработки
-		if (RxBuf==RxBuf0) RxBuf=RxBuf1; else RxBuf=RxBuf0; // переключиться на другой буфер
+		if (RxBuf==RxBuf0) RxBuf=RxBuf1; else RxBuf=RxBuf0; // переключиться на другой буфер для чтения
 			/* start the DMA again */
 			HAL_UARTEx_ReceiveToIdle_DMA(&huart2, (uint8_t *) RxBuf, RxBuf_SIZE);  // Чтение до idle это важно!
 			__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
-			HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода - чтение нового пакета
+			HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                   // Инвертирование состояния светодиода - чтение нового пакета
 
     // Разбор полученных данных они лежат в Buf
 	for(i=0;i<Size;i++)  // По всему принятому буферу
@@ -142,7 +141,7 @@ void beep(uint16_t t)
 			   index = (header->start_angle + angle_per_sample * j)*360/0xB400;    // расчет угла в градусах
 			   if (index>359) index=index-359;                                     // переход через 0
 			   if (index>359) index=359;
-			   point=(onePoint*)&Buf[i+10+j*3];                                     // наложить структуру одного измерения
+			   point=(onePoint*)&Buf[i+10+j*3];                                     // наложить структуру одного измерения на буфер с данными
 			   data[index].distance=point->distance;
 			   data[index].quality=point->quality;
 		       } // for
@@ -190,33 +189,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);    // Установить светодиод 2 в 0
    beep(200);
-   ST7735_Init();
-   ST7735_Backlight_On(); // Включить подсветку дисплея
-   ST7735_SetRotation(3);
-   ST7735_FillScreen(ST7735_BLACK);
-   ST7735_DrawString(10, 30, "LIDAR MB-1R2T", Font_11x18, ST7735_YELLOW, ST7735_BLACK);
-   ST7735_DrawFastHLine(10,50, 140, ST7735_YELLOW);
-   ST7735_DrawFastHLine(10,51, 140, ST7735_YELLOW);
-   ST7735_DrawString(0, 98, "Encoder button - zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-   ST7735_DrawString(0, 108, "Hardware version: 1.3", Font_7x10, ST7735_RED, ST7735_BLACK);
-   ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
-   ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
-   HAL_GPIO_WritePin(GPIOB, LED2_Pin, GPIO_PIN_SET);    // Установить светодиод 2 в 1
-   HAL_Delay(3000);
-   ST7735_FillScreen(ST7735_BLACK);
-   ST7735_DrawCircle(CENTRE_X, CENTRE_Y, RADIUS, ST7735_BLUE);
-   #ifdef UART_DMA  // Вывести режим работы
-   ST7735_DrawString(120, 106, " DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
-   #else
-   ST7735_DrawString(115, 106, "no DMA", Font_7x10, ST7735_YELLOW, ST7735_BLACK);
-   #endif
-   scale_show();
-   time=HAL_GetTick();
+   showStartScreen();
 
    #ifdef UART_DMA
    RxBuf=RxBuf0; // Установить текущий буфер
-   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, RxBuf, RxBuf_SIZE);
-    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
+   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, RxBuf, RxBuf_SIZE);  // Запустить чтение с uart лидара
+    __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);         //
    #endif
   /* USER CODE END 2 */
 
@@ -468,10 +446,10 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-  #ifndef UART_DMA
+  #ifndef UART_DMA // Чтение пакета и чтение кнопки
    readOnePoket();
    osDelay(1);
-  #else
+  #else  // DMA - пакеты читаются по событию idle только чтение кнопки
    if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
    osDelay(30);
    // Чтение кнопки энкодера - изменение масштаба
@@ -502,7 +480,7 @@ void StartTask02(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	showData();
+	  showRadar();
  //   osDelay(1);
   }
   /* USER CODE END StartTask02 */

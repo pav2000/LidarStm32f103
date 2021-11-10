@@ -36,6 +36,7 @@ extern "C" {
 #include "st7735.h"
 #include "fonts.h"
 #include "lidar.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -96,6 +97,8 @@ extern void scale_show(void);
 extern void radar_show(uint16_t angle, uint16_t dist);
 extern void readOnePoket(void);
 extern void showData(void);
+extern void showStartScreen(void);
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
