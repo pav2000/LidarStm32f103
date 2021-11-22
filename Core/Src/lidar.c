@@ -1,4 +1,5 @@
 
+#include "string.h"
 #include "main.h"
 #include "lidar.h"
 #include "cmsis_os.h"
@@ -82,6 +83,7 @@ char buf[8];
 		ST7735_DrawFastHLine(2*CENTRE_X+4,3+10*i, 4, ST7735_WHITE);
 		if (scaleLavel[scale][i]>0){
 			itoa(scaleLavel[scale][i]*10,buf,10);
+			strcat(buf," "); // для затирания хвостов
 			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,buf, Font_7x10, ST7735_RED, ST7735_BLACK);} else
 			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,"   ", Font_7x10, ST7735_RED, ST7735_BLACK);
 	}
