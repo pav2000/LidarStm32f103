@@ -45,6 +45,8 @@ typedef StaticTask_t osStaticThreadDef_t;
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_tx;
 
+TIM_HandleTypeDef htim1;
+
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
@@ -74,7 +76,7 @@ const osThreadAttr_t showLidar_attributes = {
 };
 /* USER CODE BEGIN PV */
 dataPoint data[360+1];     // массив данных лидара
-uint8_t scale=1;           // текущий масштаб графика от 1 до 6
+uint8_t scale=0;           // текущий масштаб графика от 0 до 5
 uint8_t fScale=0;          // Необходимость перерисовать шкалу (изменение масштаба)
 /* USER CODE END PV */
 
@@ -84,6 +86,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
 
@@ -121,7 +124,7 @@ void beep(uint16_t t)
 			/* start the DMA again */
 			HAL_UARTEx_ReceiveToIdle_DMA(&huart2, (uint8_t *) RxBuf, RxBuf_SIZE);  // Чтение до idle это важно!
 			__HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
-			HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                   // Инвертирование состояния светодиода - чтение нового пакета
+			HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);                          // Инвертирование состояния светодиода 1 - чтение нового пакета
 
     // Разбор полученных данных они лежат в Buf
 	for(i=0;i<Size;i++)  // По всему принятому буферу
@@ -136,7 +139,10 @@ void beep(uint16_t t)
 
 		// Чтение измерений
     	//	   if(header->data_lenght>40) break;
-		   if ((10+header->data_lenght*3)>Size) break;                             // Это ошибка длины принятого пакета, пропускаем пакет
+		   if ((10+header->data_lenght*3)>Size) {  // Инвертирование состояния светодиода 2 - есть ошибка
+			   HAL_GPIO_TogglePin(LED2_GPIO_Port, LED2_Pin);     // Ошибка
+			   break;
+		   }
 		   for (j=0;j<header->data_lenght;j++){                                    // По всем измерениям пакета
 			   index = (header->start_angle + angle_per_sample * j)*360/0xB400;    // расчет угла в градусах
 			   if (index>359) index=index-359;                                     // переход через 0
@@ -186,10 +192,15 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);      // Установить светодиод 1 в 1
    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);    // Установить светодиод 2 в 0
    beep(200);
    showStartScreen();
+
+   HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL); // Включить энкодер
+
 
    #ifdef UART_DMA
    RxBuf=RxBuf0; // Установить текущий буфер
@@ -319,6 +330,56 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 0;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 11;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 15;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 15;
+  if (HAL_TIM_Encoder_Init(&htim1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
 
 }
 
@@ -453,18 +514,13 @@ void StartDefaultTask(void *argument)
    readOnePoket();
    osDelay(1);
   #else  // DMA - пакеты читаются по событию idle только чтение кнопки
-   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
-   osDelay(30);
-   // Чтение кнопки энкодера - изменение масштаба
-	 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
-		 osDelay(30);
-		 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
-			if(scale<MAXZOOM) scale++; else scale=1;
-			pressKey=1;
-			fScale=1; // Надо перерисовать шкалу
-		 }
-	 }
-	 osDelay(50);
+   osDelay(100);
+   uint16_t new_scale = __HAL_TIM_GET_COUNTER(&htim1)/2;  // Прочитать значение энкодера
+   if (scale!=new_scale){
+	   scale=new_scale;
+	   fScale=1; // Надо перерисовать шкалу
+	   osDelay(50);
+   }
   #endif
   }
   /* USER CODE END 5 */
@@ -491,7 +547,7 @@ void StartTask02(void *argument)
 
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
+  * @note   This function is called  when TIM2 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -502,7 +558,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
+  if (htim->Instance == TIM2) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */

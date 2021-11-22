@@ -73,7 +73,7 @@ typedef struct {  // Одно измерние приходящее из лид�
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 // Глобальные настройки проекта
-#define VERSION  "0.33"   // Версия программы
+#define VERSION  "0.35"   // Версия программы
 #define UART_DMA          // Использовать DMA для чтения данных (нет пропуска пакетов, скорость поднялась почти в 2 раза)
 #define CONST_SCALE  65   // Базовый коэффициент масштабирования, полученная дистанция делится на (CONST_SCALE*scale)
 #define AVERAGING         // Усреднение значений по одинаковым углам (актуально без DMA)
@@ -112,6 +112,10 @@ extern void showStartScreen(void);
 #define TFT_CS_GPIO_Port GPIOB
 #define TFT_DC_Pin GPIO_PIN_14
 #define TFT_DC_GPIO_Port GPIOB
+#define NTC_B_Pin GPIO_PIN_8
+#define NTC_B_GPIO_Port GPIOA
+#define NTC_A_Pin GPIO_PIN_9
+#define NTC_A_GPIO_Port GPIOA
 #define TFT_RST_Pin GPIO_PIN_15
 #define TFT_RST_GPIO_Port GPIOA
 #define BUZZER_Pin GPIO_PIN_4

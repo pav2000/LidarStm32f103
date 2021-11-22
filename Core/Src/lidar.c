@@ -5,6 +5,7 @@
 #include "image.h"
 
 extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim1;
 extern dataPoint data[360+1];
 extern uint8_t scale;                               // текущий масштаб графика
 extern uint8_t fScale;                              // Необходимость перерисовать шкалу (изменение масштаба)
@@ -79,13 +80,13 @@ char buf[8];
 	ST7735_DrawFastVLine(2*CENTRE_X+4,0, CENTRE_Y, ST7735_WHITE);
 	for (i=0;i<6;i++){
 		ST7735_DrawFastHLine(2*CENTRE_X+4,3+10*i, 4, ST7735_WHITE);
-		if (scaleLavel[scale-1][i]>0){
-			itoa(scaleLavel[scale-1][i]*10,buf,10);
+		if (scaleLavel[scale][i]>0){
+			itoa(scaleLavel[scale][i]*10,buf,10);
 			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,buf, Font_7x10, ST7735_RED, ST7735_BLACK);} else
 			ST7735_DrawString(2*CENTRE_X+10, (5-i)*10,"   ", Font_7x10, ST7735_RED, ST7735_BLACK);
 	}
 	// Масштаб
-	itoa(scale,buf,10);
+	itoa(scale+1,buf,10);
 	ST7735_DrawString(0, 0, "x", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	ST7735_DrawString(7, 0, buf, Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	fScale=0; // Сбросить флаг необходимости перечерчиавания шкалы
@@ -99,7 +100,6 @@ void readOnePoket(void)
       uint32_t index;          // Угол в градусах, он же индекс массива данных
       typeHeader header;
       onePoint *point;         // Указатель на одно измерение приходящее с лидара
-      uint8_t pressKey=0;      // Отпускание клавиши
 
       #ifdef AVERAGING       // Для усреднения
 	   uint32_t sum=0,n=0;
@@ -108,7 +108,6 @@ void readOnePoket(void)
 	  state = START1;        // Начальная стадия
 	   while (1)
 	  {
-	   if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==0) pressKey=0;  // Клавиша отпущена
 	   if (state == START1)   // Поиск заголовка из двух байт
 	   {
 		   HAL_UART_Receive(&huart2,(uint8_t*)rxBuf, 1, HAL_MAX_DELAY);
@@ -133,7 +132,7 @@ void readOnePoket(void)
 		   state = START1;
 		   HAL_UART_Receive_IT(&huart2, (uint8_t*)rxBuf, header.data_lenght * 3);          // читаем все данные
 		   osDelay(11);                                                             // Время должно быть больше времени приема данных 12 работает
-		   HAL_GPIO_TogglePin(GPIOB, LED2_Pin);                                     // Инвертирование состояния светодиода
+		   HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);                            // Инвертирование состояния светодиода 1 - чтение нового пакета
 
 		   // При огруглени углов до градусов получается несколько точек с одним углом, пытаемся их усреднить (признак AVERAGING)
 			#ifdef AVERAGING
@@ -168,13 +167,11 @@ void readOnePoket(void)
            #endif
     	} // if
            // Чтение кнопки энкодера - изменение масштаба
-	  		 if ((HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1)&&(pressKey==0)) {
-	  			 osDelay(20);
-	  			 if (HAL_GPIO_ReadPin(GPIOB, ENC_BTN_Pin)==1){
-	  				if(scale<MAXZOOM) scale++; else scale=1;
-	  				pressKey=1;
-	  				fScale=1; // Надо перерисовать шкалу
-	  			 }
+	   uint16_t new_scale = __HAL_TIM_GET_COUNTER(&htim1)/2;  // Прочитать значение энкодера
+	     if (scale!=new_scale){
+	  	   scale=new_scale;
+	  	   fScale=1; // Надо перерисовать шкалу
+	  	   osDelay(50);
 	  		 }
 	  }   // while
 }
@@ -188,7 +185,7 @@ uint16_t dt=0;
 char buf[8];
 time=HAL_GetTick();
      for (i=0;i<360;i++){ // Показ графика
-   			 showOnePoint(i,data[i].distance/(scale*CONST_SCALE));  // Масштабирование
+   			 showOnePoint(i,data[i].distance/((scale+1)*CONST_SCALE));  // Масштабирование
    		     data[i].distance=0;                                    // Обнулить данные
    		     if(fScale==1) scale_show(); // было изменение масштаба
          }// for
@@ -209,7 +206,7 @@ void showStartScreen(void){
 	   ST7735_DrawString(10, 75, "LIDAR MB-1R2T", Font_11x18, ST7735_YELLOW, ST7735_BLACK);
 	  // ST7735_DrawFastHLine(10,50, 140, ST7735_YELLOW);
 	   ST7735_DrawFastHLine(10,94, 140, ST7735_YELLOW);
-	   ST7735_DrawString(0, 98, "Encoder button - zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
+	   ST7735_DrawString(0, 98, "Use encoder for zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
 	   ST7735_DrawString(0, 108, "Hardware version: 1.4", Font_7x10, ST7735_RED, ST7735_BLACK);
 	   ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
 	   ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
