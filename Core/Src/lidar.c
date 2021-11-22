@@ -210,7 +210,7 @@ void showStartScreen(void){
 	  // ST7735_DrawFastHLine(10,50, 140, ST7735_YELLOW);
 	   ST7735_DrawFastHLine(10,94, 140, ST7735_YELLOW);
 	   ST7735_DrawString(0, 98, "Encoder button - zoom", Font_7x10, ST7735_WHITE, ST7735_BLACK);
-	   ST7735_DrawString(0, 108, "Hardware version: 1.3", Font_7x10, ST7735_RED, ST7735_BLACK);
+	   ST7735_DrawString(0, 108, "Hardware version: 1.4", Font_7x10, ST7735_RED, ST7735_BLACK);
 	   ST7735_DrawString(0, 118, "Software version:", Font_7x10, ST7735_RED, ST7735_BLACK);
 	   ST7735_DrawString(127, 118, VERSION, Font_7x10, ST7735_RED, ST7735_BLACK);
 	   HAL_GPIO_WritePin(GPIOB, LED2_Pin, GPIO_PIN_SET);    // Установить светодиод 2 в 1
